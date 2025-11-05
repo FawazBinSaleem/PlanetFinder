@@ -17,3 +17,7 @@ steps:
     entrypoint: gcloud
     args:
       ["run", "jobs", "update", "$_JOB", "--image", "$_IMAGE", "--region", "$_REGION"]
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args: ['run','jobs','execute','$_JOB','--region','$_REGION','--wait']    
