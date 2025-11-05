@@ -1,0 +1,7 @@
+# Upload only these files to Cloud Build
+*
+!Dockerfile
+!requirements.txt
+!planet_alert.py
+!email.html
+!de421.bsp
