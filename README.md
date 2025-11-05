@@ -1,4 +1,4 @@
-# 🌌 PlanetFinder Email Notifier
+# PlanetFinder 
 
 Automatically sends a daily email listing **visible planets** for your selected location, using the [Skyfield](https://rhodesmill.org/skyfield/) astronomy library.
 
@@ -6,7 +6,7 @@ This project finds which planets are above the horizon at night and emails you t
 
 ---
 
-## 🚀 Deployment Overview
+##  Deployment Overview
 
 Deployed as a **Google Cloud Run Job** named **`planetfinder`** under the **Google Cloud Project** `planetfinder`.
 
@@ -14,7 +14,7 @@ Cloud Scheduler triggers it daily at **3:00 PM Riyadh time (12:00 UTC)**.
 
 ---
 
-## ✨ Features
+## Features
 
 - Calculates visible planets for any configured location (Riyadh, Winnipeg, etc.)
 - Uses Skyfield’s high-precision `de421.bsp` ephemeris
@@ -25,7 +25,7 @@ Cloud Scheduler triggers it daily at **3:00 PM Riyadh time (12:00 UTC)**.
 
 ---
 
-## 🧩 Project Structure
+##  Project Structure
 
 ```
 planetfinder/
@@ -38,7 +38,7 @@ planetfinder/
 
 ---
 
-## ⚙️ Environment Variables
+##  Environment Variables
 
 Create a `.env` file (or use Secret Manager in Cloud Run) with:
 
@@ -54,7 +54,7 @@ PLANET_ALERT_LOCATION=riyadh
 
 ---
 
-## 🌍 Changing the Location
+##  Changing the Location
 
 You can easily switch which city or region the script uses for calculations.
 
@@ -111,7 +111,7 @@ PLANET_ALERT_LOCATION=winnipeg python planetfinder_simple.py
 
 ---
 
-## 🧪 Run Locally
+##  Run Locally
 
 1. Clone the repo:
    ```bash
@@ -139,12 +139,12 @@ PLANET_ALERT_LOCATION=winnipeg python planetfinder_simple.py
 
 You should see something like:
 ```
-✅ Sent email for Riyadh — 3 planet(s).
+ Sent email for Riyadh - 3 planet(s).
 ```
 
 ---
 
-## 🐳 Deploy to Google Cloud Run Jobs
+##  Deploy to Google Cloud Run Jobs
 
 1. Build and push the container:
    ```bash
@@ -161,11 +161,11 @@ You should see something like:
    gcloud run jobs execute planetfinder --region us-central1
    ```
 
-If successful, you’ll get an email with today’s visible planets 🌠
+If successful, you’ll get an email with today’s visible planets 
 
 ---
 
-## ⏰ Schedule with Cloud Scheduler
+##  Schedule with Cloud Scheduler
 
 To automate daily execution:
 
@@ -181,7 +181,7 @@ Cloud Scheduler will now trigger your job daily.
 
 ---
 
-## 🔄 Optional: Connect GitHub for Auto-Deploy
+##  Optional: Connect GitHub for Auto-Deploy
 
 If you want Cloud Run to rebuild automatically whenever you push updates:
 
@@ -193,10 +193,10 @@ If you want Cloud Run to rebuild automatically whenever you push updates:
 
 ---
 
-## 🪐 Example Email Output
+##  Example Email Output
 
 **Subject:**  
-> 🌌 Planets over Riyadh — visible tonight (Nov 4, 2025)
+> Planets visible over Riyadh
 
 | Planet | Rises | Sets |
 |--------|--------|------|
@@ -206,7 +206,7 @@ If you want Cloud Run to rebuild automatically whenever you push updates:
 
 ---
 
-## 🧠 Notes
+##  Notes
 
 - Adjust `ALT_THRESHOLD` and `NIGHT_LIMIT_DEG` in the script for different horizon or twilight definitions.
 - Ephemeris file (`de421.bsp`) is automatically downloaded and cached by Skyfield.
@@ -214,6 +214,6 @@ If you want Cloud Run to rebuild automatically whenever you push updates:
 
 ---
 
-## 📜 License
+##  License
 
 MIT © 2025 Fawaz Bin Saleem
