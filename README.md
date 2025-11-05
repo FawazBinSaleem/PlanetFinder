@@ -181,16 +181,31 @@ Cloud Scheduler will now trigger your job daily.
 
 ---
 
-##  Optional: Connect GitHub for Auto-Deploy
+## Connect GitHub for Auto-Deploy
 
 If you want Cloud Run to rebuild automatically whenever you push updates:
 
-1. In the Cloud Run dashboard → click **“Connect repository”**
-2. Authorize GitHub and select your repo
-3. Choose branch (e.g. `main`)
-4. Deploy from source (it uses your Dockerfile)
+1. Go to Cloud Build → Triggers → Create trigger.
+2. Source: GitHub (Cloud Build GitHub App) → authorize → pick your repo + main branch.
+3. Event: Push to a branch.
+4. Configuration: Cloud Build configuration file → path: cloudbuild.yaml.
 5. Future commits will automatically rebuild and update your job
+   
+Create the Trigger!!!!
 
+
+
+
+
+
+
+Substitutions (optional): leave defaults from the file, or override:
+
+_REGION: us-central1
+
+_JOB: planetfinder
+
+Create the trigger.
 ---
 
 ##  Example Email Output
