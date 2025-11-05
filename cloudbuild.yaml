@@ -1,0 +1,16 @@
+substitutions:
+  _REGION: us-central1
+  _JOB: planetfinder
+  _IMAGE: gcr.io/$PROJECT_ID/planetfinder:$SHORT_SHA
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ['build', '-t', '$_IMAGE', '.']
+
+  - name: gcr.io/cloud-builders/docker
+    args: ['push', '$_IMAGE']
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      ['run', 'jobs', 'update', '$_JOB', '--image', '$_IMAGE', '--region', '$_REGION']
