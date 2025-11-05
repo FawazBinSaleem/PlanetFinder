@@ -198,7 +198,7 @@ def main():
         digest_html=digest
     )
 
-    send_email(f"Planets visible tonight over {CITY.title()}", html)
+    send_email(f"Planets visible over the {CITY.title()} sky", html)
     print(f"Sent email for {CITY.title()} - {len(rows)} planet(s).")
 
 if __name__ == "__main__":
