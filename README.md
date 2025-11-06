@@ -25,18 +25,6 @@ Cloud Scheduler triggers it daily at **3:00 PM Riyadh time (12:00 UTC)**.
 
 ---
 
-##  Project Structure
-
-```
-planetfinder/
-├── planetfinder_simple.py   # Main Python script
-├── email.html               # Email template (HTML)
-├── requirements.txt         # Python dependencies
-├── Dockerfile               # Container definition
-└── .env.example             # Example environment variables
-```
-
----
 
 ##  Environment Variables
 
@@ -60,7 +48,7 @@ You can easily switch which city or region the script uses for calculations.
 
 ### Option 1: Use a preset location
 
-Inside `planetfinder_simple.py`, the following preset cities are available:
+Inside `planet_alert.py`, the following preset cities are available:
 
 ```python
 LOCATIONS = {
@@ -83,7 +71,7 @@ When you redeploy or re-run locally, it will automatically use the new location 
 
 If your city isn’t in the list, you can add it easily:
 
-1. Open **`planetfinder_simple.py`**
+1. Open **`planet_alert.py`**
 2. Scroll to the `LOCATIONS` dictionary
 3. Add your city entry, for example:
 
@@ -134,7 +122,7 @@ PLANET_ALERT_LOCATION=winnipeg python planetfinder_simple.py
 
 5. Run:
    ```bash
-   python planetfinder_simple.py
+   python planet_alert.py
    ```
 
 You should see something like:
@@ -175,37 +163,49 @@ To automate daily execution:
    0 12 * * *
    ```
    → runs daily at **3:00 PM Riyadh time (12:00 UTC)**
-3. Save it — you’re done!
+3. Save it, you’re done!
 
 Cloud Scheduler will now trigger your job daily.
 
 ---
 
-## Connect GitHub for Auto-Deploy
+ Connect GitHub for Auto-Deploy
 
-If you want Cloud Run to rebuild automatically whenever you push updates:
+This guide explains how to automatically rebuild and deploy your Cloud Run service whenever you push updates to your GitHub repository.
 
-1. Go to Cloud Build → Triggers → Create trigger.
-2. Source: GitHub (Cloud Build GitHub App) → authorize → pick your repo + main branch.
-3. Event: Push to a branch.
-4. Configuration: Cloud Build configuration file → path: cloudbuild.yaml.
-5. Future commits will automatically rebuild and update your job
-   
-Create the Trigger!!!!
+---
 
+## Steps
 
+1. In the Google Cloud Console, navigate to **Cloud Build → Triggers → Create trigger**.
+2. **Source:**  
+   Select **GitHub (Cloud Build GitHub App)**, authorize access, and choose your repository and the **main** branch.
+3. **Event:**  
+   Choose **Push to a branch**.
+4. **Configuration:**  
+   Select **Cloud Build configuration file**, and set the path to:  
+   ```
+   cloudbuild.yaml
+   ```
+5. Click **Create trigger**.
 
+---
 
+## Result
 
+Future commits to your **main** branch will automatically trigger a new build and deployment of your Cloud Run job.
 
+---
 
-Substitutions (optional): leave defaults from the file, or override:
+## Optional Substitutions
 
+Keep defaults unless you need to override them:
+
+```
 _REGION: us-central1
-
 _JOB: planetfinder
+```
 
-Create the trigger.
 ---
 
 ##  Example Email Output
@@ -226,9 +226,3 @@ Create the trigger.
 - Adjust `ALT_THRESHOLD` and `NIGHT_LIMIT_DEG` in the script for different horizon or twilight definitions.
 - Ephemeris file (`de421.bsp`) is automatically downloaded and cached by Skyfield.
 - If your email doesn’t send on Cloud Run, double-check your Gmail App Password and `.env` variables under **Cloud Run → Variables & Secrets**.
-
----
-
-##  License
-
-MIT © 2025 Fawaz Bin Saleem
