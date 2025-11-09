@@ -116,7 +116,7 @@ Content-Type:application/json
 }
 ```
 
-⏰ Schedule: **Every day at 3:00 PM (Asia/Riyadh)**
+ Schedule: **Every day at 3:00 PM (Asia/Riyadh)**
 
 ---
 
