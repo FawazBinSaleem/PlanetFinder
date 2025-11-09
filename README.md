@@ -1,4 +1,4 @@
-# PlanetFinder ☄️
+# PlanetFinder 
 
 Automatically sends a daily email listing **visible planets** for your selected location using the [Skyfield](https://rhodesmill.org/skyfield/) astronomy library.
 
@@ -6,18 +6,18 @@ The script calculates which planets are above the horizon during nighttime, dete
 
 ---
 
-## 🚀 Deployment Options
+##  Deployment Options
 
 PlanetFinder supports two methods of automation:
 
 | Method | Cost | Reliability | Description |
 |--------|------|-------------|-------------|
-| **GitHub Actions + cron-job.org (current)** ✅ | ✅ Free | ✅ Very reliable | cron-job.org triggers GitHub Action daily |
-| **Google Cloud Run + Cloud Build CI/CD (previous)** | ⚠️ May incur costs | ✅ Production-ready | Cloud Run deploys + executes automatically on push |
+| **GitHub Actions + cron-job.org (current)**  |  Free |  Very reliable | cron-job.org triggers GitHub Action daily |
+| **Google Cloud Run + Cloud Build CI/CD (previous)** |  May incur costs | Production-ready | Cloud Run deploys + executes automatically on push |
 
 ---
 
-## ✨ Features
+##  Features
 
 - Identifies which planets are visible from your location
 - Uses high-precision JPL ephemeris (`de421.bsp`)
@@ -31,7 +31,7 @@ PlanetFinder supports two methods of automation:
 
 ---
 
-## 🔧 Environment Variables (`.env`)
+##  Environment Variables (`.env`)
 
 ```
 EMAIL=your_email@gmail.com
@@ -44,7 +44,7 @@ PLANET_ALERT_LOCATION=riyadh
 
 ---
 
-## 🌍 Switch Location
+##  Switch Location
 
 `planet_alert.py` has built‑in presets:
 
@@ -61,11 +61,11 @@ Change location via `.env`:
 PLANET_ALERT_LOCATION=winnipeg
 ```
 
-Add a new city by editing the dict.
+Add a new city by editing the .env and location coordinates in `planet_alert.py`
 
 ---
 
-## ▶️ Run Locally
+##  Run Locally
 
 ```bash
 git clone https://github.com/FawazBinSaleem/PlanetFinder.git
@@ -86,7 +86,7 @@ Sent email for Riyadh – 3 planet(s) visible.
 
 ---
 
-## ✅ Deployment (Current): GitHub Actions + cron‑job.org
+##  Deployment (Current): GitHub Actions + cron‑job.org
 
 ### GitHub Actions workflow file:
 Located at: `.github/workflows/planetfinder.yml`
@@ -105,6 +105,7 @@ https://api.github.com/repos/FawazBinSaleem/PlanetFinder/actions/workflows/plane
 ```
 Authorization: Bearer <YOUR_TOKEN>
 Accept: application/vnd.github+json
+Content-Type:application/json
 ```
 
 **Body:**
@@ -119,7 +120,7 @@ Accept: application/vnd.github+json
 
 ---
 
-## 📦 Optional: Google Cloud Run CI/CD (Old Deployment)
+##  Optional: Google Cloud Run CI/CD (Old Deployment)
 
 Cloud Build YAML:
 
@@ -136,18 +137,6 @@ steps:
     args:
       ['run', 'jobs', 'update', 'planetfinder', '--image', 'gcr.io/$PROJECT_ID/planetfinder:$SHORT_SHA', '--region', 'us-central1']
 ```
-
----
-
-## 🧠 Skills Learned
-
-- Python automation
-- Email via SMTP
-- Astronomy calculations
-- CI/CD pipelines (GitHub Actions & Cloud Build)
-- Cron scheduling
-- Docker containerization
-- Secrets & security handling
 
 ---
 
