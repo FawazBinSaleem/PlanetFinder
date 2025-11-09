@@ -1,8 +1,8 @@
 name: PlanetFinder Cron
 
 on:
-  schedule:
-  - cron: "0 12 * * *" # 3:00 PM Riyadh (UTC+3) = 12:00 UTC
+  # schedule:
+  # - cron: "0 12 * * *" # cron-job.org does this now, gh actions was too slow
   workflow_dispatch:
   push:
     branches:
