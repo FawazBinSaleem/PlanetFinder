@@ -1,8 +1,7 @@
 name: PlanetFinder Cron
 
 on:
-  # schedule:
-  # - cron: "0 12 * * *" # cron-job.org does this now, gh actions was too slow
+
   workflow_dispatch:
   push:
     branches:
@@ -51,24 +50,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Ensure ephemeris (optional)
-      if: env.DOWNLOAD_EPHEMERIS == 'true'
-      run: |
-        # Skyfield may auto-download de421; if you want to cache or ensure it's present:
-        python - <<'PY'
-        from skyfield.api import load
-        load('de421.bsp')
-        print('de421 ensured')
-        PY
 
     - name: Run PlanetFinder script
       run: |
         python planet_alert.py
 
-    - name: Upload run output (email body snapshot) as artifact (optional)
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: planetfinder-output-logs
-        path: |
-          ./planetfinder-output.log
+   
