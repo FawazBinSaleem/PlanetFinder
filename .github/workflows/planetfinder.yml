@@ -1,0 +1,72 @@
+name: PlanetFinder Cron
+
+on:
+  schedule:
+  - cron: "0 12 * * *" # 3:00 PM Riyadh (UTC+3) = 12:00 UTC
+  workflow_dispatch:
+
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  run-planetfinder:
+    runs-on: ubuntu-latest
+    env:
+
+      EMAIL: ${{ secrets.EMAIL }}
+      PASSWORD: ${{ secrets.PASSWORD }}
+      RECIPIENT_EMAILS: ${{ secrets.RECIPIENT_EMAILS }}
+      PLANET_ALERT_LOCATION: ${{ secrets.PLANET_ALERT_LOCATION }}
+      #to want the script to fetch de421 or similar, set DOWNLOAD_EPHEMERIS=true
+      DOWNLOAD_EPHEMERIS: ${{ secrets.DOWNLOAD_EPHEMERIS }}
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.12"
+
+    - name: Mask secrets in logs
+      run: |
+        echo "::add-mask::${{ secrets.EMAIL }}"
+        echo "::add-mask::${{ secrets.PASSWORD }}"
+        echo "::add-mask::${{ secrets.RECIPIENT_EMAILS }}"
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Ensure ephemeris (optional)
+      if: env.DOWNLOAD_EPHEMERIS == 'true'
+      run: |
+        # Skyfield may auto-download de421; if you want to cache or ensure it's present:
+        python - <<'PY'
+        from skyfield.api import load
+        load('de421.bsp')
+        print('de421 ensured')
+        PY
+
+    - name: Run PlanetFinder script
+      run: |
+        python planet_alert.py
+
+    - name: Upload run output (email body snapshot) as artifact (optional)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: planetfinder-output-logs
+        path: |
+          ./planetfinder-output.log
