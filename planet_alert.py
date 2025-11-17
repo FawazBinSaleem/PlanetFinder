@@ -45,7 +45,7 @@ PLANETS = {
 
 STEP_MIN        = 2.5   # sampling resolution (minutes)
 ALT_THRESHOLD   = -0.5  # approximate refraction at horizon
-NIGHT_LIMIT_DEG = -6.0  # civil night cutoff
+NIGHT_LIMIT_DEG = 0  # sun below horizon
 
 
 TEMPLATE_HTML = Path(__file__).resolve().parent / "email.html"
