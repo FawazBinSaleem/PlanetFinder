@@ -105,7 +105,7 @@ def find_rise_set(ephem_key, now, hours=48, step_min=STEP_MIN, alt_threshold=ALT
 
 def send_email(subject, html_body):
     msg = MIMEText(html_body, "html", "utf-8")
-    msg["From"], msg["To"], msg["Subject"] = EMAIL, RECIPIENT, subject
+    msg["From"], msg["To"], msg["Subject"] = EMAIL, RECIPIENT
     to_list = [a.strip() for a in RECIPIENT.split(",") if a.strip()]
 
     with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as s:
@@ -116,25 +116,52 @@ def send_email(subject, html_body):
 
 def main():
     now = datetime.now(tz).replace(microsecond=0)
+    t_now = ts.from_datetime(now)
 
     rows = []
     for name, key in PLANETS.items():
         last_rise, next_rise, next_set = find_rise_set(key, now)
+        alt_now = planet_alt(key, t_now)
 
-        # Prefer the next upcoming rise; if none, fall back to last one
-        rise_dt = next_rise or last_rise
+        # Decide what rise time to display:
+        # - If the planet is currently up: show the last rise (today)
+        # - Otherwise: show the next rise (tonight/tomorrow)
+        if alt_now >= ALT_THRESHOLD and last_rise and last_rise <= now:
+            rise_dt = last_rise
+        elif next_rise:
+            rise_dt = next_rise
+        else:
+            rise_dt = last_rise  # fallback, may be None
+
         rise_str = rise_dt.strftime("%I:%M %p") if rise_dt else "—"
         set_str  = next_set.strftime("%I:%M %p") if next_set else "—"
+
+        # Priority for sorting:
+        #  0 -> currently up
+        #  1 -> rises later today
+        #  2 -> rises tomorrow or later
+        if alt_now >= ALT_THRESHOLD and rise_dt:
+            priority = 0
+        elif rise_dt and rise_dt > now and rise_dt.date() == now.date():
+            priority = 1
+        else:
+            priority = 2
 
         rows.append({
             "name":     name,
             "rise_dt":  rise_dt,
             "rise_str": rise_str,
             "set_str":  set_str,
+            "priority": priority,
         })
 
-    # Sort by rise time (None at bottom)
-    rows.sort(key=lambda r: (r["rise_dt"] is None, r["rise_dt"]))
+    # Sort: currently-up first (by rise time), then later-today, then later days
+    rows.sort(
+        key=lambda r: (
+            r["priority"],
+            r["rise_dt"] or datetime.max.replace(tzinfo=tz),
+        )
+    )
 
     # Build HTML table
     digest = "<table style='width:100%;font-size:14px;border-collapse:collapse;'>"
