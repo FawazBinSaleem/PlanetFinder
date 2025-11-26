@@ -105,14 +105,13 @@ def find_rise_set(ephem_key, now, hours=48, step_min=STEP_MIN, alt_threshold=ALT
 
 def send_email(subject, html_body):
     msg = MIMEText(html_body, "html", "utf-8")
-    msg["From"], msg["To"], msg["Subject"] = EMAIL, RECIPIENT
+    msg["From"], msg["To"], msg["Subject"] = EMAIL, RECIPIENT, subject
     to_list = [a.strip() for a in RECIPIENT.split(",") if a.strip()]
 
     with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as s:
         s.starttls()
         s.login(EMAIL, PASSWORD)
         s.sendmail(EMAIL, to_list, msg.as_string())
-
 
 def main():
     now = datetime.now(tz).replace(microsecond=0)
