@@ -152,12 +152,14 @@ def main():
             "ordering_rise":  ordering_rise_dt,
         })
 
-    # Sort purely by the "ordering_rise" timestamp.
-    # This depends on the DATE (today's midnight anchor) but
-    # NOT on what time of day you run the script.
+    # Sort so that:
+    #   - Planets that rise in the PM come first
+    #   - Planets that rise in the AM come after
+    #   - Within each group, sort by rise time
     rows.sort(
         key=lambda r: (
-            r["ordering_rise"] or datetime.max.replace(tzinfo=tz)
+            1 if (r["ordering_rise"] and r["ordering_rise"].hour < 12) else 0,
+            r["ordering_rise"] or datetime.max.replace(tzinfo=tz),
         )
     )
 
