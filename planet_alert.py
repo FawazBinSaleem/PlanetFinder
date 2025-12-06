@@ -122,43 +122,55 @@ def main():
         last_rise, next_rise, next_set = find_rise_set(key, now)
         alt_now = planet_alt(key, t_now)
 
-        # Decide what rise time to display:
-        # - If the planet is currently up: show the last rise (today)
-        # - Otherwise: show the next rise (tonight/tomorrow)
+        # Decide what rise time to DISPLAY in the table
         if alt_now >= ALT_THRESHOLD and last_rise and last_rise <= now:
-            rise_dt = last_rise
+            display_rise_dt = last_rise
         elif next_rise:
-            rise_dt = next_rise
+            display_rise_dt = next_rise
         else:
-            rise_dt = last_rise  # fallback, may be None
+            display_rise_dt = last_rise  # fallback, may be None
 
-        rise_str = rise_dt.strftime("%I:%M %p") if rise_dt else "—"
+        rise_str = display_rise_dt.strftime("%I:%M %p") if display_rise_dt else "—"
         set_str  = next_set.strftime("%I:%M %p") if next_set else "—"
 
-        # Priority for sorting:
-        #  0 -> currently up
-        #  1 -> rises later today
-        #  2 -> rises tomorrow or later
-        if alt_now >= ALT_THRESHOLD and rise_dt:
-            priority = 0
-        elif rise_dt and rise_dt > now and rise_dt.date() == now.date():
-            priority = 1
+        # Is the planet currently above the horizon?
+        is_up = alt_now >= ALT_THRESHOLD
+
+        # For sorting, we care about the NEXT real event relative to now:
+        # - If it's up: next event is its set time
+        # - If it's down: next event is its next rise time
+        if is_up and next_set:
+            next_event_dt = next_set
+        elif (not is_up) and next_rise:
+            next_event_dt = next_rise
         else:
-            priority = 2
+            # Fallback if we didn't find a clean future event
+            next_event_dt = next_rise or next_set
+
+        seconds_until = (
+            (next_event_dt - now).total_seconds()
+            if next_event_dt is not None
+            else float("inf")
+        )
 
         rows.append({
-            "name":     name,
-            "rise_dt":  rise_dt,
-            "rise_str": rise_str,
-            "set_str":  set_str,
-            "priority": priority,
+            "name":          name,
+            "rise_str":      rise_str,
+            "set_str":       set_str,
+            "is_up":         is_up,
+            "next_event_dt": next_event_dt,
+            "seconds_until": seconds_until,
         })
 
-    # Sort: currently-up first (by rise time), then later-today, then later days
+    # Sort:
+    #   1) All planets currently up (is_up=True) first
+    #   2) Within each group, by how soon their next event happens
+    #   3) Tie-breaker: name
     rows.sort(
         key=lambda r: (
-            r["priority"],
-            r["rise_dt"] or datetime.max.replace(tzinfo=tz),
+            0 if r["is_up"] else 1,
+            r["seconds_until"],
+            r["name"],
         )
     )
 
