@@ -152,16 +152,9 @@ def main():
             "ordering_rise":  ordering_rise_dt,
         })
 
-    # Sort so that:
-    #   - Planets that rise in the PM come first
-    #   - Planets that rise in the AM come after
-    #   - Within each group, sort by rise time
-    rows.sort(
-        key=lambda r: (
-            1 if (r["ordering_rise"] and r["ordering_rise"].hour < 12) else 0,
-            r["ordering_rise"] or datetime.max.replace(tzinfo=tz),
-        )
-    )
+rows.sort(
+    key=lambda r: r["ordering_rise"] or datetime.max.replace(tzinfo=tz)
+)
 
     # Build HTML table
     digest = "<table style='width:100%;font-size:14px;border-collapse:collapse;'>"
