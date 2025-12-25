@@ -28,8 +28,8 @@ loc = LOCATIONS[CITY]
 tz  = ZoneInfo(loc["tz"])
 
 # Skyfield setup
-ts   = load.timescale()
-eph  = load('de421.bsp')
+ts    = load.timescale()
+eph   = load("de421.bsp")
 topos = wgs84.latlon(loc["lat"], loc["lon"], elevation_m=loc["elev_m"])
 
 PLANETS = {
@@ -43,14 +43,13 @@ PLANETS = {
 }
 
 # Sampling settings
-STEP_MIN      = 2.5   # sampling resolution (minutes)
-ALT_THRESHOLD = -0.5  # approximate refraction at horizon
+STEP_MIN      = 2.5
+ALT_THRESHOLD = -0.5
 
 TEMPLATE_HTML = Path(__file__).resolve().parent / "email.html"
 
 
 def planet_alt(ephem_key, t):
-    """Return altitude (in degrees) of a body at time t."""
     body = eph[ephem_key]
     obs = (eph["earth"] + topos).at(t)
     alt, _, _ = obs.observe(body).apparent().altaz()
@@ -58,15 +57,9 @@ def planet_alt(ephem_key, t):
 
 
 def find_rise_set(ephem_key, now, hours=48, step_min=STEP_MIN, alt_threshold=ALT_THRESHOLD):
-    """
-    Scan around 'now' to find:
-      - last rise before 'now'
-      - next rise after 'now'
-      - next set after 'now'
-    """
     t0 = ts.from_datetime(now - timedelta(hours=48))
     t1 = ts.from_datetime(now + timedelta(hours=hours))
-    step = step_min / (24 * 60)  # days
+    step = step_min / (24 * 60)
 
     t = t0
     prev_alt = planet_alt(ephem_key, t)
@@ -80,7 +73,6 @@ def find_rise_set(ephem_key, now, hours=48, step_min=STEP_MIN, alt_threshold=ALT
         t_next = ts.tt_jd(t.tt + step)
         alt = planet_alt(ephem_key, t_next)
 
-        # Upward crossing = rise
         if prev_alt < alt_threshold and alt >= alt_threshold:
             rise_time = t_next.utc_datetime().astimezone(tz)
             if rise_time <= now:
@@ -89,7 +81,6 @@ def find_rise_set(ephem_key, now, hours=48, step_min=STEP_MIN, alt_threshold=ALT
                 next_rise_after = rise_time
                 saw_future_rise = True
 
-        # Downward crossing = set
         if prev_alt >= alt_threshold and alt < alt_threshold:
             set_time = t_next.utc_datetime().astimezone(tz)
             if set_time > now and next_set_after is None:
@@ -105,7 +96,10 @@ def find_rise_set(ephem_key, now, hours=48, step_min=STEP_MIN, alt_threshold=ALT
 
 def send_email(subject, html_body):
     msg = MIMEText(html_body, "html", "utf-8")
-    msg["From"], msg["To"], msg["Subject"] = EMAIL, RECIPIENT, subject
+    msg["From"] = EMAIL
+    msg["To"] = RECIPIENT
+    msg["Subject"] = subject
+
     to_list = [a.strip() for a in RECIPIENT.split(",") if a.strip()]
 
     with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as s:
@@ -113,50 +107,44 @@ def send_email(subject, html_body):
         s.login(EMAIL, PASSWORD)
         s.sendmail(EMAIL, to_list, msg.as_string())
 
+
 def main():
     now = datetime.now(tz).replace(microsecond=0)
     t_now = ts.from_datetime(now)
 
-    # Anchor for "today": local midnight
     today_start = now.replace(hour=0, minute=0, second=0)
 
     rows = []
+
     for name, key in PLANETS.items():
-        # Times relative to *now* (for display)
         last_rise, next_rise, next_set = find_rise_set(key, now)
         alt_now = planet_alt(key, t_now)
 
-        # Decide what rise time to DISPLAY in the table
-        # - If the planet is currently up: show the last rise (today)
-        # - Otherwise: show the next rise (tonight/tomorrow)
         if alt_now >= ALT_THRESHOLD and last_rise and last_rise <= now:
             display_rise_dt = last_rise
         elif next_rise:
             display_rise_dt = next_rise
         else:
-            display_rise_dt = last_rise  # fallback, may be None
+            display_rise_dt = last_rise
 
         rise_str = display_rise_dt.strftime("%I:%M %p") if display_rise_dt else "—"
         set_str  = next_set.strftime("%I:%M %p") if next_set else "—"
 
-        # For a STABLE ORDER for the whole day:
-        # compute the first rise *after today's midnight*.
         _, first_rise_today, _ = find_rise_set(key, today_start)
-        # Fallbacks in case a rise isn't found in the scan window
         ordering_rise_dt = first_rise_today or next_rise or last_rise
 
         rows.append({
-            "name":           name,
-            "rise_str":       rise_str,
-            "set_str":        set_str,
-            "ordering_rise":  ordering_rise_dt,
+            "name": name,
+            "rise_str": rise_str,
+            "set_str": set_str,
+            "ordering_rise": ordering_rise_dt,
         })
 
-rows.sort(
-    key=lambda r: r["ordering_rise"] or datetime.max.replace(tzinfo=tz)
-)
+    # ✅ Normal chronological order (AM first, then PM)
+    rows.sort(
+        key=lambda r: r["ordering_rise"] or datetime.max.replace(tzinfo=tz)
+    )
 
-    # Build HTML table
     digest = "<table style='width:100%;font-size:14px;border-collapse:collapse;'>"
     digest += "<tr><th align='left'>Planet</th><th align='left'>Rises</th><th align='left'>Sets</th></tr>"
     for r in rows:
