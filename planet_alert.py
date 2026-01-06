@@ -140,7 +140,6 @@ def main():
             "ordering_rise": ordering_rise_dt,
         })
 
-    # ✅ Normal chronological order (AM first, then PM)
     rows.sort(
         key=lambda r: r["ordering_rise"] or datetime.max.replace(tzinfo=tz)
     )
