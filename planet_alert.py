@@ -4,162 +4,247 @@ from email.mime.text import MIMEText
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from pathlib import Path
-from skyfield.api import load, wgs84
+
 from dotenv import load_dotenv
+from skyfield.api import load, wgs84
+from skyfield import almanac
 
 
 load_dotenv()
-EMAIL     = os.getenv("EMAIL")
-PASSWORD  = os.getenv("PASSWORD")
-RECIPIENT = os.getenv("RECIPIENT_EMAILS", "")
-CITY      = os.getenv("PLANET_ALERT_LOCATION", "winnipeg").lower()
 
-if not EMAIL or not PASSWORD or not RECIPIENT:
+SENDER_EMAIL = os.getenv("EMAIL")
+SENDER_APP_PASSWORD = os.getenv("PASSWORD")
+RECIPIENT_EMAILS_RAW = os.getenv("RECIPIENT_EMAILS", "")
+CITY_KEY = os.getenv("PLANET_ALERT_LOCATION", "winnipeg").lower()
+
+if not SENDER_EMAIL or not SENDER_APP_PASSWORD or not RECIPIENT_EMAILS_RAW:
     raise SystemExit("Missing EMAIL / PASSWORD / RECIPIENT_EMAILS in .env")
 
 LOCATIONS = {
-    "riyadh":   {"lat": 24.7136, "lon": 46.6753,  "elev_m": 600, "tz": "Asia/Riyadh"},
-    "winnipeg": {"lat": 49.8955, "lon": -97.1385, "elev_m": 240, "tz": "America/Winnipeg"},
+    "riyadh": {
+        "latitude": 24.7136,
+        "longitude": 46.6753,
+        "elevation_m": 600,
+        "timezone": "Asia/Riyadh",
+    },
+    "winnipeg": {
+        "latitude": 49.8955,
+        "longitude": -97.1385,
+        "elevation_m": 240,
+        "timezone": "America/Winnipeg",
+    },
 }
-if CITY not in LOCATIONS:
-    raise SystemExit(f"Unknown PLANET_ALERT_LOCATION '{CITY}'")
 
-loc = LOCATIONS[CITY]
-tz  = ZoneInfo(loc["tz"])
+if CITY_KEY not in LOCATIONS:
+    raise SystemExit(f"Unknown PLANET_ALERT_LOCATION '{CITY_KEY}'")
 
-# Skyfield setup
-ts    = load.timescale()
-eph   = load("de421.bsp")
-topos = wgs84.latlon(loc["lat"], loc["lon"], elevation_m=loc["elev_m"])
+location_info = LOCATIONS[CITY_KEY]
+local_timezone = ZoneInfo(location_info["timezone"])
+
+EMAIL_TEMPLATE_PATH = Path(__file__).resolve().parent / "email.html"
+
+# Altitude threshold for "rise/set" 
+HORIZON_DEGREES = -0.5
+
+# How far ahead we look for upcoming events .
+LOOKAHEAD_HOURS = 48
+
+
+
+timescale = load.timescale()
+ephemeris = load("de421.bsp")
+
+observer_topos = wgs84.latlon(
+    location_info["latitude"],
+    location_info["longitude"],
+    elevation_m=location_info["elevation_m"],
+)
+
+observer = ephemeris["earth"] + observer_topos
 
 PLANETS = {
     "Mercury": "mercury barycenter",
-    "Venus":   "venus",
-    "Mars":    "mars",
+    "Venus": "venus",
+    "Mars": "mars",
     "Jupiter": "jupiter barycenter",
-    "Saturn":  "saturn barycenter",
-    "Uranus":  "uranus barycenter",
+    "Saturn": "saturn barycenter",
+    "Uranus": "uranus barycenter",
     "Neptune": "neptune barycenter",
 }
 
-# Sampling settings
-STEP_MIN      = 2.5
-ALT_THRESHOLD = -0.5
-
-TEMPLATE_HTML = Path(__file__).resolve().parent / "email.html"
+planet_bodies = {planet_name: ephemeris[ephem_key] for planet_name, ephem_key in PLANETS.items()}
 
 
-def planet_alt(ephem_key, t):
-    body = eph[ephem_key]
-    obs = (eph["earth"] + topos).at(t)
-    alt, _, _ = obs.observe(body).apparent().altaz()
-    return alt.degrees
+# Altitude of a body at a given skyfield Time.
+def altitude_degrees_of_body(body, skyfield_time):
+    
+    apparent = observer.at(skyfield_time).observe(body).apparent()
+    altitude, _, _ = apparent.altaz()
+    return altitude.degrees
 
 
-def find_rise_set(ephem_key, now, hours=48, step_min=STEP_MIN, alt_threshold=ALT_THRESHOLD):
-    t0 = ts.from_datetime(now - timedelta(hours=48))
-    t1 = ts.from_datetime(now + timedelta(hours=hours))
-    step = step_min / (24 * 60)
 
-    t = t0
-    prev_alt = planet_alt(ephem_key, t)
+def find_rise_set_events(body, window_start_dt, window_end_dt, horizon_degrees=HORIZON_DEGREES):
+    
+    window_start_time = timescale.from_datetime(window_start_dt)
+    window_end_time = timescale.from_datetime(window_end_dt)
 
-    last_rise_before = None
-    next_rise_after  = None
-    next_set_after   = None
-    saw_future_rise  = False
+    event_function = almanac.risings_and_settings(
+        ephemeris,
+        body,
+        observer_topos,
+        horizon_degrees=horizon_degrees,
+    )
 
-    while t.tt < t1.tt:
-        t_next = ts.tt_jd(t.tt + step)
-        alt = planet_alt(ephem_key, t_next)
+    event_times, event_states = almanac.find_discrete(window_start_time, window_end_time, event_function)
 
-        if prev_alt < alt_threshold and alt >= alt_threshold:
-            rise_time = t_next.utc_datetime().astimezone(tz)
-            if rise_time <= now:
-                last_rise_before = rise_time
-            elif next_rise_after is None:
-                next_rise_after = rise_time
-                saw_future_rise = True
-
-        if prev_alt >= alt_threshold and alt < alt_threshold:
-            set_time = t_next.utc_datetime().astimezone(tz)
-            if set_time > now and next_set_after is None:
-                next_set_after = set_time
-                if saw_future_rise:
-                    break
-
-        prev_alt = alt
-        t = t_next
-
-    return last_rise_before, next_rise_after, next_set_after
+    events = []
+    # event_states: 1 means "above horizon", 0 means "below horizon".
+    # With risings_and_settings, transitions correspond to rise/set.
+    for idx in range(len(event_states)):
+        local_dt = event_times[idx].utc_datetime().astimezone(local_timezone)
+        state = int(event_states[idx])
+        # When it transitions to 1 => rising event, to 0 => setting event.
+        event_type = "rise" if state == 1 else "set"
+        events.append((local_dt, event_type))
 
 
-def send_email(subject, html_body):
-    msg = MIMEText(html_body, "html", "utf-8")
-    msg["From"] = EMAIL
-    msg["To"] = RECIPIENT
-    msg["Subject"] = subject
+    events.sort(key=lambda x: x[0])
+    return events
 
-    to_list = [a.strip() for a in RECIPIENT.split(",") if a.strip()]
 
-    with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as s:
-        s.starttls()
-        s.login(EMAIL, PASSWORD)
-        s.sendmail(EMAIL, to_list, msg.as_string())
+def pick_times_for_digest(events, now_local_dt):
+   
+    last_rise_before_now = None
+    next_rise_after_now = None
+
+    for event_dt, event_type in events:
+        if event_type == "rise" and event_dt <= now_local_dt:
+            last_rise_before_now = event_dt
+        elif event_type == "rise" and event_dt > now_local_dt and next_rise_after_now is None:
+            next_rise_after_now = event_dt
+
+    # Prefer the next set that happens after the chosen rise time (so it pairs nicely).
+    chosen_rise = next_rise_after_now or last_rise_before_now
+    next_set_after_now = None
+    if chosen_rise:
+        for event_dt, event_type in events:
+            if event_type == "set" and event_dt > max(now_local_dt, chosen_rise):
+                next_set_after_now = event_dt
+                break
+    else:
+        
+        for event_dt, event_type in events:
+            if event_type == "set" and event_dt > now_local_dt:
+                next_set_after_now = event_dt
+                break
+
+    return last_rise_before_now, next_rise_after_now, next_set_after_now
+
+
+def first_rise_on_or_after(events, day_start_local_dt, day_end_local_dt):
+    for event_dt, event_type in events:
+        if event_type == "rise" and day_start_local_dt <= event_dt < day_end_local_dt:
+            return event_dt
+    return None
+
+
+
+def send_email_html(subject, html_body):
+    message = MIMEText(html_body, "html", "utf-8")
+    message["From"] = SENDER_EMAIL
+    message["To"] = RECIPIENT_EMAILS_RAW
+    message["Subject"] = subject
+
+    recipient_list = [addr.strip() for addr in RECIPIENT_EMAILS_RAW.split(",") if addr.strip()]
+
+    with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as smtp:
+        smtp.starttls()
+        smtp.login(SENDER_EMAIL, SENDER_APP_PASSWORD)
+        smtp.sendmail(SENDER_EMAIL, recipient_list, message.as_string())
+
 
 
 def main():
-    now = datetime.now(tz).replace(microsecond=0)
-    t_now = ts.from_datetime(now)
+    now_local = datetime.now(local_timezone).replace(microsecond=0)
 
-    today_start = now.replace(hour=0, minute=0, second=0)
+
+    today_start_local = now_local.replace(hour=0, minute=0, second=0)
+    today_end_local = today_start_local + timedelta(days=1)
+
+  
+    lookback_local = now_local - timedelta(hours=48)
+    lookahead_local = now_local + timedelta(hours=LOOKAHEAD_HOURS)
 
     rows = []
 
-    for name, key in PLANETS.items():
-        last_rise, next_rise, next_set = find_rise_set(key, now)
-        alt_now = planet_alt(key, t_now)
+    for planet_name, body in planet_bodies.items():
+      
+        events = find_rise_set_events(
+            body=body,
+            window_start_dt=lookback_local,
+            window_end_dt=lookahead_local,
+            horizon_degrees=HORIZON_DEGREES,
+        )
 
-        if alt_now >= ALT_THRESHOLD and last_rise and last_rise <= now:
-            display_rise_dt = last_rise
+        last_rise, next_rise, next_set = pick_times_for_digest(events, now_local)
+
+ 
+        now_skyfield_time = timescale.from_datetime(now_local)
+        altitude_now = altitude_degrees_of_body(body, now_skyfield_time)
+
+        if altitude_now >= HORIZON_DEGREES and last_rise and last_rise <= now_local:
+            display_rise_time = last_rise
         elif next_rise:
-            display_rise_dt = next_rise
+            display_rise_time = next_rise
         else:
-            display_rise_dt = last_rise
+            display_rise_time = last_rise
 
-        rise_str = display_rise_dt.strftime("%I:%M %p") if display_rise_dt else "—"
-        set_str  = next_set.strftime("%I:%M %p") if next_set else "—"
+        rise_str = display_rise_time.strftime("%I:%M %p") if display_rise_time else "—"
+        set_str = next_set.strftime("%I:%M %p") if next_set else "—"
 
-        _, first_rise_today, _ = find_rise_set(key, today_start)
-        ordering_rise_dt = first_rise_today or next_rise or last_rise
+       
+        first_rise_today = first_rise_on_or_after(events, today_start_local, today_end_local)
+        ordering_rise_time = first_rise_today or next_rise or last_rise
 
-        rows.append({
-            "name": name,
-            "rise_str": rise_str,
-            "set_str": set_str,
-            "ordering_rise": ordering_rise_dt,
-        })
+        rows.append(
+            {
+                "planet_name": planet_name,
+                "rise_str": rise_str,
+                "set_str": set_str,
+                "ordering_rise_time": ordering_rise_time,
+            }
+        )
 
-    rows.sort(
-        key=lambda r: r["ordering_rise"] or datetime.max.replace(tzinfo=tz)
+    # Sort by ordering rise time, unknowns last
+    far_future_local = datetime.max.replace(tzinfo=local_timezone)
+    rows.sort(key=lambda r: r["ordering_rise_time"] or far_future_local)
+
+
+    table_rows_html = "".join(
+        f"<tr><td>{r['planet_name']}</td><td>{r['rise_str']}</td><td>{r['set_str']}</td></tr>"
+        for r in rows
+    )
+    digest_html = (
+        "<table style='width:100%;font-size:14px;border-collapse:collapse;'>"
+        "<tr><th align='left'>Planet</th><th align='left'>Rises</th><th align='left'>Sets</th></tr>"
+        f"{table_rows_html}"
+        "</table>"
     )
 
-    digest = "<table style='width:100%;font-size:14px;border-collapse:collapse;'>"
-    digest += "<tr><th align='left'>Planet</th><th align='left'>Rises</th><th align='left'>Sets</th></tr>"
-    for r in rows:
-        digest += f"<tr><td>{r['name']}</td><td>{r['rise_str']}</td><td>{r['set_str']}</td></tr>"
-    digest += "</table>"
-
-    html = TEMPLATE_HTML.read_text(encoding="utf-8").format(
-        city=CITY.title(),
-        date=now.strftime("%b %d, %Y"),
-        start_time=now.strftime("%I:%M %p"),
-        end_time=(now + timedelta(hours=24)).strftime("%I:%M %p"),
-        digest_html=digest,
+    template_html = EMAIL_TEMPLATE_PATH.read_text(encoding="utf-8")
+    rendered_html = template_html.format(
+        city=CITY_KEY.title(),
+        date=now_local.strftime("%b %d, %Y"),
+        start_time=now_local.strftime("%I:%M %p"),
+        end_time=(now_local + timedelta(hours=24)).strftime("%I:%M %p"),
+        digest_html=digest_html,
     )
 
-    send_email(f"Planet rise & set times over the {CITY.title()} sky", html)
-    print(f"Sent email for {CITY.title()} - {len(rows)} planets.")
+    subject = f"Planet rise & set times over the {CITY_KEY.title()} sky"
+    send_email_html(subject, rendered_html)
+
+    print(f"Sent email for {CITY_KEY.title()} - {len(rows)} planets.")
 
 
 if __name__ == "__main__":

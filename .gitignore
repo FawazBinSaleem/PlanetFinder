@@ -1,9 +1,16 @@
-
+# Environment variables / secrets
 .env
 /secrets/
 *.json
 
+# Python virtual environments
+venv/
+.venv/
+env/
 
+# Python cache
 __pycache__/
 *.pyc
+
+# Temp files
 /tmp/
